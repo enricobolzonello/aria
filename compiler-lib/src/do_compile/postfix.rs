@@ -43,6 +43,7 @@ pub(super) enum PostfixValue {
     Case(Box<PostfixValue>, Box<Identifier>, Option<Expression>),
     Index(Box<PostfixValue>, Box<aria_parser::ast::Expression>),
     ObjWrite(Box<PostfixValue>, Vec<ObjWrite>),
+    Sigil(Box<PostfixValue>, String, SourcePointer),
 }
 
 impl<'a> PostfixValue {
@@ -119,6 +120,37 @@ impl<'a> PostfixValue {
                         BasicBlockOpcode::ReadAttribute(identifier_idx),
                         identifier.loc.clone(),
                     );
+                Ok(())
+            }
+            PostfixValue::Sigil(base, sigil, loc) => {
+                base.emit_read(params)?;
+                let sigil_const_idx = match params
+                    .module
+                    .constants
+                    .insert(ConstantValue::String(sigil.clone()))
+                {
+                    Ok(c) => c,
+                    Err(_) => {
+                        return Err(CompilationError {
+                            loc: loc.clone(),
+                            reason: CompilationErrorReason::TooManyConstants,
+                        });
+                    }
+                };
+
+                params
+                    .writer
+                    .get_current_block()
+                    .write_opcode_and_source_info(
+                        BasicBlockOpcode::Push(sigil_const_idx),
+                        loc.clone(),
+                    );
+
+                params
+                    .writer
+                    .get_current_block()
+                    .write_opcode_and_source_info(BasicBlockOpcode::Call(2), loc.clone());
+
                 Ok(())
             }
             PostfixValue::ObjWrite(base, terms) => {
@@ -209,6 +241,10 @@ impl<'a> PostfixValue {
                     );
                 Ok(())
             }
+            PostfixValue::Sigil(_, _, loc) => Err(CompilationError {
+                loc: loc.clone(),
+                reason: CompilationErrorReason::ReadOnlyValue,
+            }),
             PostfixValue::Attribute(base, identifier) => {
                 let identifier_idx = match params
                     .module
@@ -298,6 +334,13 @@ impl From<&aria_parser::ast::PostfixExpression> for PostfixValue {
                         }
                     }
                     current = PostfixValue::ObjWrite(Box::new(current), terms)
+                }
+                aria_parser::ast::PostfixTerm::PostfixTermSigil(sigil) => {
+                    current = PostfixValue::Sigil(
+                        Box::new(current),
+                        sigil.sigil.clone(),
+                        sigil.loc.clone(),
+                    )
                 }
             }
         }

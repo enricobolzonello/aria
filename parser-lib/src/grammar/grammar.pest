@@ -27,6 +27,8 @@ list_literal = { "[" ~ expr_list? ~ "]" }
 
 expr_list = { expression ~ ("," ~ expression)* ~ ","? }
 
+sigil = @{ "_" ~ identifier }
+
 paren_expr = { "(" ~ expression ~ ")" }
 primary    = { identifier | fp_literal | str_literal | int_literal | list_literal | paren_expr }
 
@@ -45,12 +47,14 @@ postfix_term_index        = { "[" ~ expression ~ "]" }
 postfix_term_call         = { "(" ~ expr_list? ~ ")" }
 postfix_term_object_write = { "{" ~ postfix_term_write_list ~ "}" }
 postfix_term_enum_case    = { "::" ~ identifier ~ ("(" ~ expression ~ ")")? }
+postfix_term_sigil        = { sigil }
 postfix_term              = {
     postfix_term_object_write
   | postfix_term_enum_case
   | postfix_term_attrib
   | postfix_term_index
   | postfix_term_call
+  | postfix_term_sigil
 }
 
 postfix_lv = { primary ~ postfix_term* }
